@@ -33,8 +33,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('stg_customers')
-              field: customer_id
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
       - name: product_id
         tests:
           - not_null
@@ -42,7 +43,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['active', 'cancelled', 'paused', 'trialing', 'past_due']
+              arguments:
+                values: ['active', 'cancelled', 'paused', 'trialing', 'past_due']
 
   - name: stg_events
     description: Cleaned product usage and activity events

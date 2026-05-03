@@ -16,7 +16,8 @@ exposures:
     owner:
       name: Analytics Team
       email: analytics@company.com
-    tags: ['executive', 'kpis']
+    config:
+      tags: ['executive', 'kpis']
 
   - name: revenue_operations_dashboard
     label: Revenue Operations Dashboard
@@ -34,7 +35,8 @@ exposures:
     owner:
       name: RevOps Team
       email: revops@company.com
-    tags: ['revenue', 'operations']
+    config:
+      tags: ['revenue', 'operations']
 
   - name: churn_and_retention_dashboard
     label: Churn & Retention Dashboard
@@ -52,7 +54,8 @@ exposures:
     owner:
       name: Customer Success Team
       email: cs@company.com
-    tags: ['churn', 'retention', 'cs']
+    config:
+      tags: ['churn', 'retention', 'cs']
 
   - name: product_usage_dashboard
     label: Product Usage & Engagement Dashboard
@@ -69,7 +72,8 @@ exposures:
     owner:
       name: Product Team
       email: product@company.com
-    tags: ['product', 'usage', 'engagement']
+    config:
+      tags: ['product', 'usage', 'engagement']
 
   - name: data_science_feature_store
     label: Data Science Feature Store
@@ -85,4 +89,5 @@ exposures:
     owner:
       name: Data Science Team
       email: datascience@company.com
-    tags: ['ml', 'feature_store']
+    config:
+      tags: ['ml', 'feature_store']

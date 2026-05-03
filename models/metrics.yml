@@ -1,139 +1,177 @@
 version: 2
 
+semantic_models:
+  - name: fct_invoices_sm
+    description: Semantic model over billing fact table
+    model: ref('fct_invoices')
+    primary_entity: invoice
+    defaults:
+      agg_time_dimension: invoice_date
+    dimensions:
+      - name: invoice_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: plan_code
+        type: categorical
+      - name: tier_level
+        type: categorical
+      - name: payment_method
+        type: categorical
+      - name: currency_code
+        type: categorical
+      - name: is_paid
+        type: categorical
+    measures:
+      - name: total_mrr
+        description: Sum of MRR contributions from paid invoices
+        agg: sum
+        expr: mrr_contribution_usd
+      - name: total_arr
+        description: Sum of ARR contributions
+        agg: sum
+        expr: arr_contribution_usd
+      - name: total_collected
+        description: Sum of net amounts collected
+        agg: sum
+        expr: net_amount_usd
+      - name: invoice_count
+        description: Count of invoices
+        agg: count
+        expr: invoice_sk
+
+  - name: dim_customer_sm
+    description: Semantic model over customer dimension
+    model: ref('dim_customer')
+    primary_entity: customer
+    defaults:
+      agg_time_dimension: customer_created_at
+    dimensions:
+      - name: customer_created_at
+        type: time
+        type_params:
+          time_granularity: day
+      - name: customer_segment
+        type: categorical
+      - name: acquisition_channel
+        type: categorical
+      - name: country_code
+        type: categorical
+    measures:
+      - name: customer_count
+        description: Count of distinct customers
+        agg: count_distinct
+        expr: customer_id
+
+  - name: fct_events_sm
+    description: Semantic model over product usage events
+    model: ref('fct_events')
+    primary_entity: event
+    defaults:
+      agg_time_dimension: event_date_key
+    dimensions:
+      - name: event_date_key
+        type: time
+        type_params:
+          time_granularity: day
+      - name: event_type
+        type: categorical
+      - name: event_category
+        type: categorical
+      - name: platform
+        type: categorical
+    measures:
+      - name: event_count
+        description: Total number of events
+        agg: count
+        expr: event_sk
+      - name: active_users
+        description: Distinct users with events
+        agg: count_distinct
+        expr: customer_sk
+
+  - name: fct_subscriptions_sm
+    description: Semantic model over subscription facts
+    model: ref('fct_subscriptions')
+    primary_entity: subscription
+    defaults:
+      agg_time_dimension: start_date
+    dimensions:
+      - name: start_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: plan_code
+        type: categorical
+      - name: status
+        type: categorical
+      - name: is_active
+        type: categorical
+      - name: is_churned
+        type: categorical
+    measures:
+      - name: subscription_count
+        description: Count of subscriptions
+        agg: count_distinct
+        expr: subscription_id
+      - name: subscription_mrr
+        description: Sum of MRR from subscriptions
+        agg: sum
+        expr: mrr_usd
+
 metrics:
   - name: mrr
     label: Monthly Recurring Revenue
-    model: ref('fct_invoices')
-    description: >
-      Total Monthly Recurring Revenue from paid invoices,
-      normalised to monthly amounts regardless of billing frequency.
-    type: sum
-    sql: mrr_contribution_usd
-    timestamp: invoice_date
-    time_grains: [day, month, quarter, year]
-    filters:
-      - field: is_paid
-        operator: '='
-        value: 'true'
-    dimensions:
-      - plan_code
-      - tier_level
-    meta:
-      owner: RevOps
-      team: analytics
+    description: Total MRR from paid invoices, normalised to monthly amounts.
+    type: simple
+    type_params:
+      measure:
+        name: total_mrr
 
   - name: arr
     label: Annual Recurring Revenue
-    model: ref('fct_invoices')
     description: ARR derived from paid MRR contributions annualised.
-    type: sum
-    sql: arr_contribution_usd
-    timestamp: invoice_date
-    time_grains: [month, quarter, year]
-    filters:
-      - field: is_paid
-        operator: '='
-        value: 'true'
-    dimensions:
-      - plan_code
-      - tier_level
-    meta:
-      owner: RevOps
-
-  - name: new_customers
-    label: New Customers
-    model: ref('dim_customer')
-    description: Count of net-new customers acquired in the period.
-    type: count_distinct
-    sql: customer_id
-    timestamp: customer_created_at
-    time_grains: [day, week, month, quarter, year]
-    dimensions:
-      - customer_segment
-      - acquisition_channel
-      - country_code
-    meta:
-      owner: Growth
-
-  - name: active_subscriptions
-    label: Active Subscriptions
-    model: ref('fct_subscriptions')
-    description: Count of active (non-cancelled, non-paused) subscriptions.
-    type: count_distinct
-    sql: subscription_id
-    timestamp: start_date
-    time_grains: [day, month, quarter]
-    filters:
-      - field: is_active
-        operator: '='
-        value: 'true'
-    dimensions:
-      - plan_code
-    meta:
-      owner: RevOps
-
-  - name: churned_subscriptions
-    label: Churned Subscriptions
-    model: ref('fct_subscriptions')
-    description: Count of subscriptions that transitioned to cancelled status.
-    type: count_distinct
-    sql: subscription_id
-    timestamp: cancelled_at
-    time_grains: [day, month, quarter, year]
-    filters:
-      - field: is_churned
-        operator: '='
-        value: 'true'
-    dimensions:
-      - plan_code
-      - cancellation_reason
-    meta:
-      owner: CS
-
-  - name: dau
-    label: Daily Active Users
-    model: ref('fct_events')
-    description: Count of distinct customers who performed at least one event per day.
-    type: count_distinct
-    sql: customer_sk
-    timestamp: event_date_key
-    time_grains: [day, week, month]
-    dimensions:
-      - event_category
-      - platform
-    meta:
-      owner: Product
-
-  - name: total_events
-    label: Total Events
-    model: ref('fct_events')
-    description: Total count of product usage events.
-    type: count
-    sql: event_sk
-    timestamp: event_date_key
-    time_grains: [day, week, month]
-    dimensions:
-      - event_type
-      - event_category
-      - platform
-    meta:
-      owner: Product
+    type: simple
+    type_params:
+      measure:
+        name: total_arr
 
   - name: total_collected_revenue
     label: Total Collected Revenue
-    model: ref('fct_invoices')
     description: Sum of net amounts collected from paid invoices.
-    type: sum
-    sql: net_amount_usd
-    timestamp: paid_at
-    time_grains: [day, month, quarter, year]
-    filters:
-      - field: is_paid
-        operator: '='
-        value: 'true'
-    dimensions:
-      - plan_code
-      - payment_method
-      - currency_code
-    meta:
-      owner: Finance
+    type: simple
+    type_params:
+      measure:
+        name: total_collected
+
+  - name: new_customers
+    label: New Customers
+    description: Count of net-new customers acquired in the period.
+    type: simple
+    type_params:
+      measure:
+        name: customer_count
+
+  - name: active_subscriptions
+    label: Active Subscriptions
+    description: Count of active subscriptions.
+    type: simple
+    type_params:
+      measure:
+        name: subscription_count
+
+  - name: dau
+    label: Daily Active Users
+    description: Distinct customers who performed at least one event per day.
+    type: simple
+    type_params:
+      measure:
+        name: active_users
+
+  - name: total_events
+    label: Total Events
+    description: Total count of product usage events.
+    type: simple
+    type_params:
+      measure:
+        name: event_count
