@@ -1,0 +1,35 @@
+# dbt
+target/
+dbt_packages/
+logs/
+package-lock.yml
+
+# Credentials — never commit real profiles
+profiles.yml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+.python-version
+
+# Elementary
+edr_target/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
