@@ -12,20 +12,65 @@ on:
         default: 'false'
         type: boolean
 
-env:
-  DBT_PROFILES_DIR: .
-  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
-  SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE_PROD }}
-  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
-
 jobs:
+  # ── Always runs — validates project structure without Snowflake credentials ──
+  validate:
+    name: dbt Validate (parse + ls)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      - name: Create placeholder profiles.yml
+        run: |
+          cat > profiles.yml << 'EOF'
+          star_schema_warehouse:
+            target: dev
+            outputs:
+              dev:
+                type: snowflake
+                account: placeholder
+                user: placeholder
+                password: placeholder
+                role: ACCOUNTADMIN
+                database: DEV_DB
+                warehouse: COMPUTE_WH
+                schema: public
+                threads: 4
+          EOF
+
+      - name: dbt parse
+        run: dbt parse --profiles-dir .
+
+      - name: dbt ls
+        run: dbt ls --profiles-dir .
+
+  # ── Only runs when Snowflake secrets are configured ──
   deploy:
     name: dbt Full Build — Production
     runs-on: ubuntu-latest
+    needs: validate
     environment: production
+    env:
+      DBT_PROFILES_DIR: .
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE_PROD }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+    if: ${{ secrets.SNOWFLAKE_ACCOUNT != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +95,7 @@ jobs:
       - name: dbt snapshot
         run: dbt snapshot --target prod
 
-      - name: dbt build (full)
+      - name: dbt build
         run: |
           dbt build \
             --target prod \
@@ -64,11 +109,12 @@ jobs:
           path: target/
           retention-days: 30
 
+  # ── Docs: only after a successful deploy ──
   docs:
     name: Generate & Publish dbt Docs
     runs-on: ubuntu-latest
     needs: deploy
-    if: success()
+    if: ${{ secrets.SNOWFLAKE_ACCOUNT != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +135,14 @@ jobs:
 
       - name: Generate dbt docs
         run: dbt docs generate --target prod
+        env:
+          DBT_PROFILES_DIR: .
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE_PROD }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v4
@@ -104,11 +158,12 @@ jobs:
           publish_dir: ./target
           destination_dir: docs
 
+  # ── Elementary: only when secrets are configured ──
   elementary-prod:
     name: Elementary Observability — Production
     runs-on: ubuntu-latest
     needs: deploy
-    if: always()
+    if: ${{ secrets.SNOWFLAKE_ACCOUNT != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -125,9 +180,25 @@ jobs:
         run: cp profiles.yml.example profiles.yml
 
       - name: Run Elementary
-        run: edr run --target prod
+        run: python -m elementary.cli.edr run --target prod
+        env:
+          DBT_PROFILES_DIR: .
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE_PROD }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
 
-      - name: Send Slack alert on anomalies
+      - name: Send Slack alert
         if: always()
         continue-on-error: true
-        run: edr send-report --target prod --slack-token ${{ secrets.SLACK_TOKEN }} --slack-channel data-alerts
+        run: python -m elementary.cli.edr send-report --target prod --slack-token ${{ secrets.SLACK_TOKEN }} --slack-channel data-alerts
+        env:
+          DBT_PROFILES_DIR: .
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE_PROD }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
