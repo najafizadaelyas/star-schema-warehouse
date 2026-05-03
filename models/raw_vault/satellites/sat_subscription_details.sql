@@ -27,10 +27,10 @@ with source as (
         cancellation_reason,
         'CRM'                                                           as record_source
     from {{ ref('stg_subscriptions') }}
-),
+)
 
 {% if is_incremental() %}
-new_or_changed as (
+, new_or_changed as (
     select src.*
     from source as src
     left join {{ this }} as tgt
@@ -39,11 +39,8 @@ new_or_changed as (
     where tgt.hash_key is null
        or src.hashdiff != tgt.hashdiff
 )
-
 select * from new_or_changed
 
 {% else %}
-
 select * from source
-
 {% endif %}

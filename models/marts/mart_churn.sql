@@ -1,8 +1,7 @@
 -- Mart Churn: monthly churn rate, NRR, GRR, and cohort-level retention
 with monthly_subscriptions as (
     select
-        date_trunc('month', start_date)                             as cohort_month,
-        date_trunc('month', coalesce(cancelled_at::date, current_date())) as churn_month,
+        date_trunc('month', start_date)                                 as cohort_month,
         subscription_id,
         customer_sk,
         plan_code,
@@ -13,44 +12,42 @@ with monthly_subscriptions as (
         start_date,
         cancelled_at
     from {{ ref('fct_subscriptions') }}
-    where is_current = true
-        or is_churned = true
+),
+
+months as (
+    select distinct first_day_of_month as report_month
+    from {{ ref('dim_date') }}
+    where date_day <= current_date()
+      and date_day >= dateadd('year', -3, current_date())
 ),
 
 monthly_counts as (
     select
-        date_trunc('month', calendar.date_day)                      as report_month,
+        m.report_month,
         ms.plan_code,
         count(distinct case
-            when ms.start_date <= calendar.date_day
-            and (ms.cancelled_at is null or ms.cancelled_at > calendar.date_day)
+            when ms.start_date <= m.report_month
+            and (ms.cancelled_at is null or ms.cancelled_at > m.report_month)
             then ms.subscription_id
-        end)                                                        as active_subs,
+        end)                                                            as active_subs,
         count(distinct case
-            when ms.cancelled_at::date between
-                date_trunc('month', calendar.date_day)
-                and last_day(calendar.date_day, 'month')
+            when ms.cancelled_at::date >= m.report_month
+            and ms.cancelled_at::date < dateadd('month', 1, m.report_month)
             then ms.subscription_id
-        end)                                                        as churned_subs,
+        end)                                                            as churned_subs,
         count(distinct case
-            when ms.start_date between
-                date_trunc('month', calendar.date_day)
-                and last_day(calendar.date_day, 'month')
+            when ms.start_date >= m.report_month
+            and ms.start_date < dateadd('month', 1, m.report_month)
             then ms.subscription_id
-        end)                                                        as new_subs,
+        end)                                                            as new_subs,
         sum(case
-            when ms.start_date <= calendar.date_day
-            and (ms.cancelled_at is null or ms.cancelled_at > calendar.date_day)
+            when ms.start_date <= m.report_month
+            and (ms.cancelled_at is null or ms.cancelled_at > m.report_month)
             then ms.mrr_usd else 0
-        end)                                                        as active_mrr_usd
-    from {{ ref('dim_date') }} as calendar
+        end)                                                            as active_mrr_usd
+    from months as m
     cross join monthly_subscriptions as ms
-    where calendar.date_day = last_day(calendar.date_day, 'month')
-        and calendar.date_day <= current_date()
-        and calendar.date_day >= dateadd('year', -3, current_date())
-    group by
-        date_trunc('month', calendar.date_day),
-        ms.plan_code
+    group by m.report_month, ms.plan_code
 )
 
 select
@@ -60,7 +57,6 @@ select
     churned_subs,
     new_subs,
     active_mrr_usd,
-    -- Churn rate: churned / beginning-of-month active
     case
         when lag(active_subs) over (partition by plan_code order by report_month) > 0
         then round(
@@ -69,8 +65,7 @@ select
             ) * 100, 4
         )
         else null
-    end                                                             as monthly_churn_rate_pct,
-    -- Annualised churn
+    end                                                                 as monthly_churn_rate_pct,
     case
         when lag(active_subs) over (partition by plan_code order by report_month) > 0
         then round(
@@ -82,8 +77,7 @@ select
             )) * 100, 4
         )
         else null
-    end                                                             as annualised_churn_rate_pct,
-    -- MRR churn rate
+    end                                                                 as annualised_churn_rate_pct,
     case
         when lag(active_mrr_usd) over (partition by plan_code order by report_month) > 0
         then round(
@@ -92,6 +86,6 @@ select
             / lag(active_mrr_usd) over (partition by plan_code order by report_month) * 100, 4
         )
         else null
-    end                                                             as mrr_churn_rate_pct
+    end                                                                 as mrr_churn_rate_pct
 from monthly_counts
 order by report_month desc, plan_code

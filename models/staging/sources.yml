@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: raw
     description: Raw operational data landed from source systems
-    database: "{{ env_var('SNOWFLAKE_DATABASE', 'PROD_DB') }}"
+    database: "{{ target.database }}"
     schema: raw
     loader: fivetran
     config:

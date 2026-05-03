@@ -15,7 +15,18 @@ with daily_events as (
     where event_date_key >= dateadd('year', -2, current_date())
 ),
 
-daily_active_users as (
+-- One row per customer per day (for rolling window user counts)
+daily_user_activity as (
+    select
+        event_date,
+        customer_sk,
+        sum(engagement_score)                                       as user_engagement_score,
+        count(*)                                                    as user_event_count
+    from daily_events
+    group by event_date, customer_sk
+),
+
+daily_agg as (
     select
         event_date,
         count(distinct customer_sk)                                 as dau,
@@ -29,62 +40,49 @@ daily_active_users as (
     group by event_date
 ),
 
-rolling_active_users as (
+-- WAU: count distinct users active in any of the last 7 days
+wau as (
     select
-        event_date,
-        dau,
-        -- WAU: rolling 7-day unique users
-        count(distinct customer_sk) over (
-            order by event_date::date
-            rows between 6 preceding and current row
-        )                                                           as wau_7d,
-        -- MAU: rolling 28-day unique users
-        count(distinct customer_sk) over (
-            order by event_date::date
-            rows between 27 preceding and current row
-        )                                                           as mau_28d,
-        daily_engagement_score,
-        total_events,
-        engagement_events,
-        conversion_events,
-        churn_signal_events,
-        distinct_features_used
-    from daily_active_users
+        a.event_date,
+        count(distinct b.customer_sk)                               as wau_7d
+    from daily_agg as a
+    inner join daily_user_activity as b
+        on b.event_date between dateadd('day', -6, a.event_date) and a.event_date
+    group by a.event_date
 ),
 
-feature_adoption as (
+-- MAU: count distinct users active in any of the last 28 days
+mau as (
     select
-        event_date,
-        feature_name,
-        count(distinct customer_sk)                                 as feature_dau,
-        count(*)                                                    as feature_event_count,
-        sum(engagement_score)                                       as feature_engagement_score
-    from daily_events
-    where feature_name is not null
-    group by event_date, feature_name
+        a.event_date,
+        count(distinct b.customer_sk)                               as mau_28d
+    from daily_agg as a
+    inner join daily_user_activity as b
+        on b.event_date between dateadd('day', -27, a.event_date) and a.event_date
+    group by a.event_date
 )
 
 select
-    r.event_date,
-    r.dau,
-    r.wau_7d,
-    r.mau_28d,
-    -- Stickiness ratios
-    round(r.dau / nullif(r.wau_7d, 0) * 100, 2)                    as dau_wau_ratio_pct,
-    round(r.dau / nullif(r.mau_28d, 0) * 100, 2)                   as dau_mau_ratio_pct,
-    r.daily_engagement_score,
-    round(r.daily_engagement_score / nullif(r.dau, 0), 2)          as avg_engagement_per_user,
-    r.total_events,
-    r.engagement_events,
-    r.conversion_events,
-    r.churn_signal_events,
-    r.distinct_features_used,
-    -- 7-day rolling averages
-    avg(r.dau) over (
-        order by r.event_date::date rows between 6 preceding and current row
+    d.event_date,
+    d.dau,
+    coalesce(w.wau_7d, d.dau)                                       as wau_7d,
+    coalesce(m.mau_28d, d.dau)                                      as mau_28d,
+    round(d.dau / nullif(coalesce(w.wau_7d, d.dau), 0) * 100, 2)   as dau_wau_ratio_pct,
+    round(d.dau / nullif(coalesce(m.mau_28d, d.dau), 0) * 100, 2)  as dau_mau_ratio_pct,
+    d.daily_engagement_score,
+    round(d.daily_engagement_score / nullif(d.dau, 0), 2)           as avg_engagement_per_user,
+    d.total_events,
+    d.engagement_events,
+    d.conversion_events,
+    d.churn_signal_events,
+    d.distinct_features_used,
+    avg(d.dau) over (
+        order by d.event_date::date rows between 6 preceding and current row
     )                                                               as dau_7d_avg,
-    avg(r.total_events) over (
-        order by r.event_date::date rows between 6 preceding and current row
+    avg(d.total_events) over (
+        order by d.event_date::date rows between 6 preceding and current row
     )                                                               as events_7d_avg
-from rolling_active_users as r
-order by r.event_date desc
+from daily_agg as d
+left join wau as w on d.event_date = w.event_date
+left join mau as m on d.event_date = m.event_date
+order by d.event_date desc
