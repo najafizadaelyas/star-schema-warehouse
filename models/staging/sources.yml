@@ -1,0 +1,75 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw operational data landed from source systems
+    database: "{{ env_var('SNOWFLAKE_DATABASE', 'PROD_DB') }}"
+    schema: raw
+    loader: fivetran
+    loaded_at_field: _loaded_at
+    freshness:
+      warn_after: {count: 12, period: hour}
+      error_after: {count: 24, period: hour}
+
+    tables:
+      - name: customers
+        description: CRM customer master records
+        columns:
+          - name: customer_id
+            description: Unique customer identifier
+            tests:
+              - unique
+              - not_null
+          - name: email
+            tests:
+              - not_null
+          - name: created_at
+            tests:
+              - not_null
+
+      - name: subscriptions
+        description: Subscription lifecycle records
+        columns:
+          - name: subscription_id
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            tests:
+              - not_null
+          - name: product_id
+            tests:
+              - not_null
+
+      - name: events
+        description: Product usage and activity events
+        columns:
+          - name: event_id
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            tests:
+              - not_null
+          - name: event_type
+            tests:
+              - not_null
+
+      - name: invoices
+        description: Billing transaction records
+        columns:
+          - name: invoice_id
+            tests:
+              - unique
+              - not_null
+          - name: subscription_id
+            tests:
+              - not_null
+
+      - name: products
+        description: Product and plan catalog
+        columns:
+          - name: product_id
+            tests:
+              - unique
+              - not_null

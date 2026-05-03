@@ -1,0 +1,93 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: Cleaned and typed customer records from CRM
+    columns:
+      - name: customer_id
+        description: Unique customer identifier (natural key)
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - not_null
+      - name: customer_name
+        tests:
+          - not_null
+      - name: country_code
+        tests:
+          - not_null
+      - name: created_at
+        tests:
+          - not_null
+
+  - name: stg_subscriptions
+    description: Cleaned subscription lifecycle records
+    columns:
+      - name: subscription_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_customers')
+              field: customer_id
+      - name: product_id
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'cancelled', 'paused', 'trialing', 'past_due']
+
+  - name: stg_events
+    description: Cleaned product usage and activity events
+    columns:
+      - name: event_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+      - name: occurred_at
+        tests:
+          - not_null
+
+  - name: stg_invoices
+    description: Cleaned billing transaction records
+    columns:
+      - name: invoice_id
+        tests:
+          - unique
+          - not_null
+      - name: subscription_id
+        tests:
+          - not_null
+      - name: amount_usd
+        tests:
+          - not_null
+      - name: invoice_date
+        tests:
+          - not_null
+
+  - name: stg_products
+    description: Cleaned product and plan catalog
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: product_name
+        tests:
+          - not_null
+      - name: plan_code
+        tests:
+          - not_null

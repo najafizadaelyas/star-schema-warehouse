@@ -1,0 +1,88 @@
+version: 2
+
+exposures:
+  - name: saas_executive_dashboard
+    label: SaaS Executive Dashboard
+    type: dashboard
+    maturity: high
+    url: https://bi.company.com/dashboards/saas-executive
+    description: >
+      Top-level KPI dashboard for C-suite. Shows MRR, ARR, churn rate, NRR,
+      and customer health metrics with monthly/quarterly trend views.
+    depends_on:
+      - ref('mart_revenue')
+      - ref('mart_churn')
+      - ref('obt_saas_metrics')
+    owner:
+      name: Analytics Team
+      email: analytics@company.com
+    tags: ['executive', 'kpis']
+
+  - name: revenue_operations_dashboard
+    label: Revenue Operations Dashboard
+    type: dashboard
+    maturity: high
+    url: https://bi.company.com/dashboards/revops
+    description: >
+      Detailed revenue breakdown by plan tier, billing period, and cohort.
+      Includes expansion/contraction waterfall, NRR/GRR tracking.
+    depends_on:
+      - ref('mart_revenue')
+      - ref('dim_customer')
+      - ref('dim_subscription')
+      - ref('fct_invoices')
+    owner:
+      name: RevOps Team
+      email: revops@company.com
+    tags: ['revenue', 'operations']
+
+  - name: churn_and_retention_dashboard
+    label: Churn & Retention Dashboard
+    type: dashboard
+    maturity: medium
+    url: https://bi.company.com/dashboards/churn
+    description: >
+      Customer health scores, churn predictions, cohort retention matrices,
+      and at-risk account lists for the CS team.
+    depends_on:
+      - ref('mart_churn')
+      - ref('obt_saas_metrics')
+      - ref('bv_customer_lifetime')
+      - ref('bv_subscription_health')
+    owner:
+      name: Customer Success Team
+      email: cs@company.com
+    tags: ['churn', 'retention', 'cs']
+
+  - name: product_usage_dashboard
+    label: Product Usage & Engagement Dashboard
+    type: dashboard
+    maturity: medium
+    url: https://bi.company.com/dashboards/usage
+    description: >
+      DAU/WAU/MAU trends, feature adoption heatmaps, engagement scoring,
+      and stickiness ratios for the Product team.
+    depends_on:
+      - ref('mart_usage')
+      - ref('fct_events')
+      - ref('dim_customer')
+    owner:
+      name: Product Team
+      email: product@company.com
+    tags: ['product', 'usage', 'engagement']
+
+  - name: data_science_feature_store
+    label: Data Science Feature Store
+    type: ml
+    maturity: low
+    description: >
+      One Big Table (OBT) consumed by ML models for churn prediction,
+      upsell scoring, and CLV modelling.
+    depends_on:
+      - ref('obt_saas_metrics')
+      - ref('bv_customer_lifetime')
+      - ref('bv_subscription_health')
+    owner:
+      name: Data Science Team
+      email: datascience@company.com
+    tags: ['ml', 'feature_store']

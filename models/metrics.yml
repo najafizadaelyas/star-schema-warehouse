@@ -1,0 +1,139 @@
+version: 2
+
+metrics:
+  - name: mrr
+    label: Monthly Recurring Revenue
+    model: ref('fct_invoices')
+    description: >
+      Total Monthly Recurring Revenue from paid invoices,
+      normalised to monthly amounts regardless of billing frequency.
+    type: sum
+    sql: mrr_contribution_usd
+    timestamp: invoice_date
+    time_grains: [day, month, quarter, year]
+    filters:
+      - field: is_paid
+        operator: '='
+        value: 'true'
+    dimensions:
+      - plan_code
+      - tier_level
+    meta:
+      owner: RevOps
+      team: analytics
+
+  - name: arr
+    label: Annual Recurring Revenue
+    model: ref('fct_invoices')
+    description: ARR derived from paid MRR contributions annualised.
+    type: sum
+    sql: arr_contribution_usd
+    timestamp: invoice_date
+    time_grains: [month, quarter, year]
+    filters:
+      - field: is_paid
+        operator: '='
+        value: 'true'
+    dimensions:
+      - plan_code
+      - tier_level
+    meta:
+      owner: RevOps
+
+  - name: new_customers
+    label: New Customers
+    model: ref('dim_customer')
+    description: Count of net-new customers acquired in the period.
+    type: count_distinct
+    sql: customer_id
+    timestamp: customer_created_at
+    time_grains: [day, week, month, quarter, year]
+    dimensions:
+      - customer_segment
+      - acquisition_channel
+      - country_code
+    meta:
+      owner: Growth
+
+  - name: active_subscriptions
+    label: Active Subscriptions
+    model: ref('fct_subscriptions')
+    description: Count of active (non-cancelled, non-paused) subscriptions.
+    type: count_distinct
+    sql: subscription_id
+    timestamp: start_date
+    time_grains: [day, month, quarter]
+    filters:
+      - field: is_active
+        operator: '='
+        value: 'true'
+    dimensions:
+      - plan_code
+    meta:
+      owner: RevOps
+
+  - name: churned_subscriptions
+    label: Churned Subscriptions
+    model: ref('fct_subscriptions')
+    description: Count of subscriptions that transitioned to cancelled status.
+    type: count_distinct
+    sql: subscription_id
+    timestamp: cancelled_at
+    time_grains: [day, month, quarter, year]
+    filters:
+      - field: is_churned
+        operator: '='
+        value: 'true'
+    dimensions:
+      - plan_code
+      - cancellation_reason
+    meta:
+      owner: CS
+
+  - name: dau
+    label: Daily Active Users
+    model: ref('fct_events')
+    description: Count of distinct customers who performed at least one event per day.
+    type: count_distinct
+    sql: customer_sk
+    timestamp: event_date_key
+    time_grains: [day, week, month]
+    dimensions:
+      - event_category
+      - platform
+    meta:
+      owner: Product
+
+  - name: total_events
+    label: Total Events
+    model: ref('fct_events')
+    description: Total count of product usage events.
+    type: count
+    sql: event_sk
+    timestamp: event_date_key
+    time_grains: [day, week, month]
+    dimensions:
+      - event_type
+      - event_category
+      - platform
+    meta:
+      owner: Product
+
+  - name: total_collected_revenue
+    label: Total Collected Revenue
+    model: ref('fct_invoices')
+    description: Sum of net amounts collected from paid invoices.
+    type: sum
+    sql: net_amount_usd
+    timestamp: paid_at
+    time_grains: [day, month, quarter, year]
+    filters:
+      - field: is_paid
+        operator: '='
+        value: 'true'
+    dimensions:
+      - plan_code
+      - payment_method
+      - currency_code
+    meta:
+      owner: Finance

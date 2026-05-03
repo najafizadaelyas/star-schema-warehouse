@@ -1,0 +1,24 @@
+event_type_id,event_type_code,event_category,event_name,is_active
+1,LOGIN,AUTHENTICATION,User Login,true
+2,LOGOUT,AUTHENTICATION,User Logout,true
+3,PASSWORD_RESET,AUTHENTICATION,Password Reset,true
+4,FEATURE_USED,ENGAGEMENT,Feature Used,true
+5,PAGE_VIEW,ENGAGEMENT,Page View,true
+6,API_CALL,ENGAGEMENT,API Call,true
+7,EXPORT,ENGAGEMENT,Data Export,true
+8,INVITE_SENT,GROWTH,Invite Sent,true
+9,INVITE_ACCEPTED,GROWTH,Invite Accepted,true
+10,UPGRADE_CLICKED,CONVERSION,Upgrade CTA Clicked,true
+11,PLAN_UPGRADED,CONVERSION,Plan Upgraded,true
+12,PLAN_DOWNGRADED,CONVERSION,Plan Downgraded,true
+13,TRIAL_STARTED,LIFECYCLE,Trial Started,true
+14,TRIAL_CONVERTED,LIFECYCLE,Trial Converted,true
+15,TRIAL_EXPIRED,LIFECYCLE,Trial Expired,true
+16,SUBSCRIPTION_CREATED,LIFECYCLE,Subscription Created,true
+17,SUBSCRIPTION_RENEWED,LIFECYCLE,Subscription Renewed,true
+18,SUBSCRIPTION_CANCELLED,LIFECYCLE,Subscription Cancelled,true
+19,PAYMENT_SUCCESS,BILLING,Payment Success,true
+20,PAYMENT_FAILED,BILLING,Payment Failed,true
+21,CHURN_RISK_FLAGGED,RETENTION,Churn Risk Flagged,true
+22,SUPPORT_TICKET,SUPPORT,Support Ticket Created,true
+23,NPS_SUBMITTED,FEEDBACK,NPS Survey Submitted,true

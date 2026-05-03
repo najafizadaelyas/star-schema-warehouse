@@ -1,0 +1,139 @@
+name: Deploy — Full dbt Build + Docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Run dbt with --full-refresh (resets incremental models)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  DBT_PROFILES_DIR: .
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+  SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE_PROD }}
+  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+
+jobs:
+  deploy:
+    name: dbt Full Build — Production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dbt and Elementary
+        run: |
+          pip install --upgrade pip
+          pip install dbt-snowflake>=1.8.0 elementary-data>=0.15.0
+
+      - name: Copy profiles
+        run: cp profiles.yml.example profiles.yml
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      - name: dbt seed
+        run: dbt seed --target prod
+
+      - name: dbt snapshot
+        run: dbt snapshot --target prod
+
+      - name: dbt build (full)
+        run: |
+          dbt build \
+            --target prod \
+            ${{ github.event.inputs.full_refresh == 'true' && '--full-refresh' || '' }}
+
+      - name: Upload dbt artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dbt-artifacts-prod-${{ github.sha }}
+          path: target/
+          retention-days: 30
+
+  docs:
+    name: Generate & Publish dbt Docs
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dbt
+        run: |
+          pip install --upgrade pip
+          pip install dbt-snowflake>=1.8.0
+
+      - name: Copy profiles
+        run: cp profiles.yml.example profiles.yml
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      - name: Generate dbt docs
+        run: dbt docs generate --target prod
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs-${{ github.sha }}
+          path: target/
+          retention-days: 90
+
+      - name: Deploy docs to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target
+          destination_dir: docs
+
+  elementary-prod:
+    name: Elementary Observability — Production
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Elementary
+        run: |
+          pip install --upgrade pip
+          pip install elementary-data>=0.15.0 dbt-snowflake>=1.8.0
+
+      - name: Copy profiles
+        run: cp profiles.yml.example profiles.yml
+
+      - name: Run Elementary
+        run: edr run --target prod
+
+      - name: Send Slack alert on anomalies
+        run: edr send-report --target prod --slack-token ${{ secrets.SLACK_TOKEN }} --slack-channel data-alerts
+        if: always()
+        continue-on-error: true
